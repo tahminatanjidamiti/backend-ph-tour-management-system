@@ -1,10 +1,12 @@
-import AppError from "../../errorHelpers/AppError";
-import { IAuthProvider, IsActive, IUser, Role } from "./user.interface";
-import { User } from "./user.model";
+import bcryptjs from "bcryptjs";
 import httpStatus from "http-status-codes";
-import bcryptjs from "bcryptjs"
-import { envVars } from "../../config/env";
 import { JwtPayload } from "jsonwebtoken";
+import { envVars } from "../../config/env";
+import AppError from "../../errorHelpers/AppError";
+import { QueryBuilder } from "../../utils/QueryBuilder";
+import { IAuthProvider, IUser, Role } from "./user.interface";
+import { User } from "./user.model";
+import { userSearchableFields } from "./user.constant";
 
 const createUser = async (payload: Partial<IUser>) => {
     const { email, password, ...rest } = payload;
@@ -16,7 +18,9 @@ const createUser = async (payload: Partial<IUser>) => {
     }
 
     const hashedPassword = await bcryptjs.hash(password as string, Number(envVars.BCRYPT_SALT_ROUND))
+
     const authProvider: IAuthProvider = { provider: "credentials", providerId: email as string }
+
 
     const user = await User.create({
         email,
@@ -24,7 +28,9 @@ const createUser = async (payload: Partial<IUser>) => {
         auths: [authProvider],
         ...rest
     })
+
     return user
+
 }
 
 const updateUser = async (userId: string, payload: Partial<IUser>, decodedToken: JwtPayload) => {
@@ -35,20 +41,9 @@ const updateUser = async (userId: string, payload: Partial<IUser>, decodedToken:
         throw new AppError(httpStatus.NOT_FOUND, "User Not Found")
     }
 
-    if (ifUserExist.isDeleted || ifUserExist.isActive === IsActive.BLOCKED) {
-        throw new AppError(httpStatus.FORBIDDEN, "This User can not be updated")
-    }
+   
 
     if (payload.role) {
-         if (decodedToken.role === Role.USER || decodedToken.role === Role.GUIDE) {
-        if (userId !== decodedToken.userId) {
-            throw new AppError(httpStatus.FORBIDDEN, "You are unauthorized to update another user's profile");
-        }
-    }
-    
-    if (decodedToken.role === Role.ADMIN && ifUserExist.role === Role.SUPER_ADMIN) {
-        throw new AppError(httpStatus.FORBIDDEN, "You are not authorized to update a superadmin profile");
-    }
         if (decodedToken.role === Role.USER || decodedToken.role === Role.GUIDE) {
             throw new AppError(httpStatus.FORBIDDEN, "You are not authorized");
         }
@@ -65,26 +60,45 @@ const updateUser = async (userId: string, payload: Partial<IUser>, decodedToken:
     }
 
     if (payload.password) {
-        payload.password = await bcryptjs.hash(payload.password, Number(envVars.BCRYPT_SALT_ROUND))
-
+        payload.password = await bcryptjs.hash(payload.password, envVars.BCRYPT_SALT_ROUND)
     }
+
     const newUpdatedUser = await User.findByIdAndUpdate(userId, payload, { new: true, runValidators: true })
-    return newUpdatedUser;
+
+    return newUpdatedUser
 }
 
-const getAllUsers = async () => {
-    const users = await User.find({});
-    const totalUsers = await User.countDocuments()
+
+const getAllUsers = async (query: Record<string, string>) => {
+
+    const queryBuilder = new QueryBuilder(User.find(), query)
+    const usersData = queryBuilder
+        .filter()
+        .search(userSearchableFields)
+        .sort()
+        .fields()
+        .paginate();
+
+    const [data, meta] = await Promise.all([
+        usersData.build(),
+        queryBuilder.getMeta()
+    ])
 
     return {
-        data: users,
-        meta: {
-            total: totalUsers
-        }
+        data,
+        meta
     }
-}
+};
+const getSingleUser = async (id: string) => {
+    const user = await User.findById(id);
+    return {
+        data: user
+    }
+};
+
 export const UserServices = {
     createUser,
-    updateUser,
-    getAllUsers
+    getAllUsers,
+    getSingleUser,
+    updateUser
 }
