@@ -11,13 +11,15 @@ export interface ITour {
     images?: string[];
     location?: string;
     costFrom?: number;
-    startDate?: Date
+    startDate?: Date;
     endDate?: Date;
+    departureLocation?: string;
+    arrivalLocation?: string;
     included?: string[];
     excluded?: string[];
     amenities: string[];
     tourPlan: string[];
-    maxGuest?: number;
+    maxGuests?: number;
     minAge?: number;
     division: Types.ObjectId
     tourType: Types.ObjectId
