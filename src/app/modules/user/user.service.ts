@@ -41,8 +41,6 @@ const updateUser = async (userId: string, payload: Partial<IUser>, decodedToken:
         throw new AppError(httpStatus.NOT_FOUND, "User Not Found")
     }
 
-   
-
     if (payload.role) {
         if (decodedToken.role === Role.USER || decodedToken.role === Role.GUIDE) {
             throw new AppError(httpStatus.FORBIDDEN, "You are not authorized");
@@ -57,10 +55,6 @@ const updateUser = async (userId: string, payload: Partial<IUser>, decodedToken:
         if (decodedToken.role === Role.USER || decodedToken.role === Role.GUIDE) {
             throw new AppError(httpStatus.FORBIDDEN, "You are not authorized");
         }
-    }
-
-    if (payload.password) {
-        payload.password = await bcryptjs.hash(payload.password, envVars.BCRYPT_SALT_ROUND)
     }
 
     const newUpdatedUser = await User.findByIdAndUpdate(userId, payload, { new: true, runValidators: true })
@@ -106,5 +100,6 @@ export const UserServices = {
     createUser,
     getAllUsers,
     getSingleUser,
-    updateUser
+    updateUser,
+    getMe
 }
